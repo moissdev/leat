@@ -1,0 +1,45 @@
+# Dependencias
+node_modules/
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Build, cobertura y caché de TypeScript
+build/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Variables de entorno: nunca versionar secretos
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel/
+
+# Supabase CLI (archivos locales)
+supabase/.branches/
+supabase/.temp/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Claude Code: configuración local personal
+.claude/settings.local.json
+
+# Claves y certificados
+*.pem
+*.key
