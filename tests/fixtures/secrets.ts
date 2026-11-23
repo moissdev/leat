@@ -4,7 +4,8 @@
  * (ni dispare la protección de push de GitHub ni al propio LEAT).
  */
 
-const ALNUM = "aB3dE5gH7jK9mN1pQ2sT4vW6yZ8cF0hJ";
+// Alfabeto armado por fragmentos: escrito completo, el propio LEAT lo marcaría por entropía.
+const ALNUM = ["aB3dE5gH", "7jK9mN1p", "Q2sT4vW6", "yZ8cF0hJ"].join("");
 const HEX = "0123456789abcdef";
 
 /** Cadena determinista de `length` caracteres alfanuméricos. */

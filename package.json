@@ -13,13 +13,17 @@
     "test:db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run --mode db"
   },
   "dependencies": {
+    "@monaco-editor/react": "4.7.0",
     "@octokit/rest": "22.0.1",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.119.0",
     "jszip": "3.10.1",
+    "lucide-react": "1.70.0",
     "next": "16.4.5",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-is": "19.3.0",
+    "recharts": "3.10.1",
     "server-only": "0.0.1",
     "tar-stream": "3.2.2",
     "zod": "4.6.7"
@@ -35,5 +39,11 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "dompurify": "3.4.17",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.5"
+    }
   }
 }

@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
+/*
+ * Tema de LEAT (modo oscuro, validado por el usuario en el checkpoint 14).
+ * Cada color se expone como utilidad de Tailwind: bg-surface, text-fg-muted,
+ * border-line, bg-sev-critical/30, text-status-active-fg, etc.
+ *
+ * - Acento (cian): acciones, navegación activa, foco, enlaces.
+ * - Evaluación (morado): score y "Falso positivo".
+ * - Amenaza (rojo): severidad Crítica y estado "Activa".
+ * Los tonos `-fg` son la versión clara de cada color para texto sobre fondo oscuro.
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Superficies */
+  --color-canvas: #0b0f14;
+  --color-surface: #111821;
+  --color-raised: #17202b;
+  --color-selected: #1a2430;
+  --color-track: #1c2633;
+  --color-line: #243041;
+  --color-line-strong: #33425a;
+
+  /* Texto */
+  --color-fg: #e6edf3;
+  --color-fg-muted: #9aa7b4;
+  /* #808c9b (antes #6b7785): ≥ 4.5:1 sobre todas las superficies (WCAG AA). */
+  --color-fg-subtle: #808c9b;
+
+  /* Identidad */
+  --color-accent: #22d3ee;
+  --color-accent-hover: #67e8f9;
+  --color-on-accent: #062a31;
+  --color-assess: #9d4edd;
+  --color-assess-fg: #b57ee8;
+  --color-threat: #b20200;
+  --color-threat-fg: #f2706b;
+
+  /* Series de gráficas (validadas contra la superficie oscura: banda de
+     luminosidad, croma, separación para daltonismo y contraste). El cian de
+     acento #22d3ee es demasiado claro como serie; aquí va un paso más oscuro. */
+  --color-chart-1: #0ea5c6;
+  --color-chart-2: #9d4edd;
+
+  /* Severidades */
+  --color-sev-critical: #b20200;
+  --color-sev-critical-fg: #f2706b;
+  --color-sev-high: #c45f00;
+  --color-sev-high-fg: #f29a4a;
+  --color-sev-medium: #d6a800;
+  --color-sev-medium-fg: #f0cf5a;
+  --color-sev-low: #31568b;
+  --color-sev-low-fg: #9dbce8;
+
+  /* Estados de hallazgos */
+  --color-status-active: #b20200;
+  --color-status-active-fg: #f2706b;
+  --color-status-resolved: #22c55e;
+  --color-status-resolved-fg: #4ade80;
+  --color-status-ignored: #64748b;
+  --color-status-ignored-fg: #94a3b8;
+  --color-status-false-positive: #9d4edd;
+  --color-status-false-positive-fg: #b57ee8;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+}
+
+/* Foco visible y consistente para teclado. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Valor enmascarado resaltado dentro del visor Monaco. */
+.leat-masked-secret {
+  background: color-mix(in srgb, var(--color-sev-critical) 35%, transparent);
+  color: var(--color-sev-critical-fg) !important;
+  border-radius: 3px;
+}
+
+/* Respeta a quien pide menos movimiento (spinners, pulsos, transiciones). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }

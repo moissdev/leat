@@ -18,9 +18,20 @@ const NOT_B64URL = "(?![A-Za-z0-9_-])";
 /** Asignación típica tras un nombre de variable: `= "`, `: '`, `": "`, etc. */
 const ASSIGN = `["']?\\s{0,5}[:=]{1,2}>?\\s{0,5}["']?`;
 
+/**
+ * Contraseñas de ejemplo de documentación (`postgres://user:pass@…`). Se
+ * excluyen pocas a propósito: `admin`, `root` o `test` en una configuración
+ * real SÍ son una filtración.
+ */
+const PLACEHOLDER_PASSWORDS = new Set(["pass", "password", "passwd", "pwd", "changeme", "example"]);
+
 /** Rechaza contraseñas que en realidad son marcadores de plantilla o de documentación. */
 function isRealPassword(secret: string): boolean {
-  return !/^(?:\$\{|\$[A-Z_]|\{\{|<|%\(|%s$)/.test(secret);
+  if (/^(?:\$\{|\$[A-Z_]|\{\{|<|%\(|%s$)/.test(secret)) return false;
+  const lower = secret.toLowerCase();
+  if (PLACEHOLDER_PASSWORDS.has(lower) || /^your[_-]?(?:db[_-]?)?(?:pass|password|pwd)$/.test(lower)) return false;
+  // Rellenos: `xxxx`, `****`, `....`, `…`.
+  return !/^(?:x+|\*+|\.+|…+)$/i.test(secret);
 }
 
 /** Decodifica un segmento base64url de JWT a objeto JSON, o null si no lo es. */

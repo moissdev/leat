@@ -58,6 +58,12 @@ const cases: PatternCase[] = [
       "DATABASE_URL=postgres://app:${DB_PASSWORD}@db.example.com/leat", // plantilla
       "MONGO=mongodb+srv://app:<password>@cluster0.example.net", // marcador de docs
       "url = https://user:pass@example.com", // esquema que no es de base de datos
+      "| Connection strings (`postgres://user:pass@…`) |", // ejemplo de documentación
+      "postgres://app:password@localhost/db",
+      "mysql://root:changeme@db:3306/app",
+      "postgres://app:your_password@host/db",
+      "redis://default:xxxxxxxx@cache:6379",
+      "postgres://app:****@host/db",
     ],
   },
   {
@@ -183,6 +189,12 @@ describe("severidades (decisiones técnicas, 4.1)", () => {
       expect(p.regex.flags, p.id).toContain("g");
       expect(p.regex.flags, p.id).toContain("d");
     }
+  });
+});
+
+describe("connection strings con contraseñas débiles reales", () => {
+  it.each(["admin", "root", "test", "secret"])("postgres://app:%s@… SÍ se reporta (no es un marcador)", (password) => {
+    expect(idsIn(`DATABASE_URL=postgres://app:${password}@prod-db.internal/app`)).toEqual(["connection_string"]);
   });
 });
 
