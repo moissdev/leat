@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { failOrphanScans } from "@/lib/scans/cleanup";
 import { createScan } from "@/lib/scans/create";
+import { finalizeScan } from "@/lib/scans/finalize";
 import { SupabaseScanStore } from "@/lib/scans/persist";
 import { processChunk } from "@/lib/scans/process-chunk";
 import { getFingerprintPepper } from "@/lib/server-env";
@@ -121,5 +123,61 @@ describe("SupabaseScanStore (integración)", () => {
     const [scan] = (await admin.from("scans").select("id").eq("user_id", userId).limit(1)).data ?? [];
     if (!scan) throw new Error("sin escaneos");
     expect(await store.getScan(randomUUID(), scan.id)).toBeNull();
+  });
+});
+
+describe("finalize, auto-resolución y limpieza (integración)", () => {
+  const options = () => ({ pepper: getFingerprintPepper(), now: new Date() });
+  const FULL = { files_total: 1, files_skipped: 0, files_truncated: 0 };
+
+  it("un ZIP completo auto-resuelve lo que falta y el trigger guarda el TTR", async () => {
+    await admin.from("scans").update({ status: "completed" }).eq("user_id", userId);
+    const project = await admin.from("projects").insert({ user_id: userId, name: "leat-finalize-test" }).select("id").single();
+    if (project.error) throw new Error(project.error.code);
+
+    const scanZip = async (content: string) => {
+      const created = await createScan(store, userId, { ingest: "zip", project_id: project.data.id, source_name: "z.zip" }, new Date());
+      if (!created.ok) throw new Error(created.error);
+      await processChunk(store, userId, created.scan.id, { chunk_index: 0, files: [{ path: "a.ts", content }] }, options());
+      return finalizeScan(store, userId, created.scan.id, FULL, new Date());
+    };
+
+    const first = await scanZip(`a="${FAKE.awsAccessKey}"\nb="${FAKE.slackToken}"`);
+    expect(first.ok && first.result?.findingsNew).toBe(2);
+    const second = await scanZip(`a="${FAKE.awsAccessKey}"`);
+    expect(second.ok && second.result?.autoResolved).toBe(1);
+
+    const resolved = await admin
+      .from("findings")
+      .select("id, status, resolved_at")
+      .eq("project_id", project.data.id)
+      .eq("status", "resolved")
+      .single();
+    expect(resolved.data?.resolved_at).not.toBeNull();
+
+    const log = await admin
+      .from("vulnerability_lifecycle_logs")
+      .select("from_status, to_status, actor, reason, ttr_seconds")
+      .eq("finding_id", resolved.data?.id ?? "")
+      .eq("to_status", "resolved")
+      .single();
+    expect(log.data).toMatchObject({ from_status: "active", actor: "system", reason: "no_longer_detected" });
+    expect(typeof log.data?.ttr_seconds).toBe("number");
+
+    const scan = await admin.from("scan_report_v").select("status, is_full_scan, findings_new, duration_ms").eq("project_id", project.data.id).order("created_at").limit(1).single();
+    expect(scan.data).toMatchObject({ status: "completed", is_full_scan: true, findings_new: 2 });
+  });
+
+  it("marca failed un escaneo huérfano (> 15 min sin actividad)", async () => {
+    await admin.from("scans").update({ status: "completed" }).eq("user_id", userId);
+    const created = await createScan(store, userId, { ingest: "snippet", project_id: projectId }, new Date());
+    if (!created.ok) throw new Error(created.error);
+    const old = new Date(Date.now() - 20 * 60_000).toISOString();
+    await admin.from("scans").update({ created_at: old }).eq("id", created.scan.id);
+    await admin.from("scan_logs").update({ created_at: old }).eq("scan_id", created.scan.id);
+
+    expect(await failOrphanScans(store, userId, new Date())).toBe(1);
+    const scan = await admin.from("scans").select("status, error_message").eq("id", created.scan.id).single();
+    expect(scan.data).toEqual({ status: "failed", error_message: "timeout" });
   });
 });

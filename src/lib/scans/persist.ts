@@ -104,6 +104,24 @@ export interface ScanProgress {
   occurrencesTotal: number;
 }
 
+/** Cierre de un escaneo (`completed`). */
+export interface CompletedScan {
+  finishedAt: Date;
+  isFullScan: boolean;
+  filesTotal: number;
+  filesSkipped: number;
+  filesTruncated: number;
+  findingsNew: number;
+  findingsReopened: number;
+  progress: ScanProgress;
+}
+
+/** Escaneo en curso con su última actividad conocida (para detectar huérfanos). */
+export interface ActiveScanActivity {
+  id: string;
+  lastActivityAt: Date;
+}
+
 export interface ScanLogEntry {
   level: "info" | "warn" | "error";
   event: string;
@@ -138,6 +156,20 @@ export interface ScanStore {
   listChunkSummaries(userId: string, scanId: string): Promise<ChunkSummary[]>;
   updateScanProgress(userId: string, scanId: string, progress: ScanProgress): Promise<void>;
   logScanEvent(userId: string, scanId: string, entry: ScanLogEntry): Promise<void>;
+
+  // ── Cierre y ciclo de vida (checkpoint 11)
+  /** IDs de los hallazgos `active` de un proyecto. */
+  listActiveFindingIds(userId: string, projectId: string): Promise<string[]>;
+  /** IDs (sin repetir) de los hallazgos con alguna ocurrencia en el escaneo. */
+  listFindingIdsSeenInScan(userId: string, scanId: string): Promise<string[]>;
+  /** `active` → `resolved` de forma condicional; devuelve cuántos resolvió. */
+  resolveFindings(userId: string, findingIds: readonly string[], reason: string): Promise<number>;
+  /** `queued`/`running` → `completed`; devuelve false si el escaneo ya no estaba abierto. */
+  completeScan(userId: string, scanId: string, result: CompletedScan): Promise<boolean>;
+  /** Escaneos `queued`/`running` creados antes de `createdBefore`, con su última actividad. */
+  listActiveScansCreatedBefore(userId: string, createdBefore: Date): Promise<ActiveScanActivity[]>;
+  /** `queued`/`running` → `failed`; devuelve false si ya no estaba abierto. */
+  failScan(userId: string, scanId: string, message: string, at: Date): Promise<boolean>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -149,6 +181,10 @@ export const CHUNK_EVENT = "chunk_processed";
 /** Huellas por consulta `in (...)`, para no exceder el largo de URL de PostgREST. */
 const FINGERPRINT_QUERY_BATCH = 100;
 const UNIQUE_VIOLATION = "23505";
+/** Filas por página: PostgREST de Supabase devuelve como máximo 1,000 por consulta. */
+const PAGE_SIZE = 1000;
+/** IDs por actualización `in (...)`. */
+const ID_UPDATE_BATCH = 100;
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -442,5 +478,128 @@ export class SupabaseScanStore implements ScanStore {
       metadata: entry.metadata ?? {},
     });
     if (error) fail("logScanEvent", error);
+  }
+
+  /** Lee todas las páginas de una consulta (PostgREST limita las filas por respuesta). */
+  private async readAllPages<T>(
+    operation: string,
+    page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { code?: string } | null }>,
+  ): Promise<T[]> {
+    const rows: T[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await page(from, from + PAGE_SIZE - 1);
+      if (error) fail(operation, error);
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < PAGE_SIZE) return rows;
+    }
+  }
+
+  async listActiveFindingIds(userId: string, projectId: string): Promise<string[]> {
+    const rows = await this.readAllPages("listActiveFindingIds", (from, to) =>
+      this.db
+        .from("findings")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("project_id", projectId)
+        .eq("status", "active")
+        .order("id")
+        .range(from, to),
+    );
+    return rows.map((r) => r.id);
+  }
+
+  async listFindingIdsSeenInScan(userId: string, scanId: string): Promise<string[]> {
+    const rows = await this.readAllPages("listFindingIdsSeenInScan", (from, to) =>
+      this.db
+        .from("finding_occurrences")
+        .select("finding_id")
+        .eq("user_id", userId)
+        .eq("scan_id", scanId)
+        .order("id")
+        .range(from, to),
+    );
+    return [...new Set(rows.map((r) => r.finding_id))];
+  }
+
+  async resolveFindings(userId: string, findingIds: readonly string[], reason: string): Promise<number> {
+    let resolved = 0;
+    for (let i = 0; i < findingIds.length; i += ID_UPDATE_BATCH) {
+      // El trigger registra la transición (actor system) y el TTR.
+      const { data, error } = await this.db
+        .from("findings")
+        .update({ status: "resolved", status_note: reason })
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .in("id", findingIds.slice(i, i + ID_UPDATE_BATCH))
+        .select("id");
+      if (error) fail("resolveFindings", error);
+      resolved += (data ?? []).length;
+    }
+    return resolved;
+  }
+
+  async completeScan(userId: string, scanId: string, result: CompletedScan): Promise<boolean> {
+    const { data, error } = await this.db
+      .from("scans")
+      .update({
+        status: "completed",
+        finished_at: result.finishedAt.toISOString(),
+        is_full_scan: result.isFullScan,
+        files_total: result.filesTotal,
+        files_skipped: result.filesSkipped,
+        files_truncated: result.filesTruncated,
+        findings_new: result.findingsNew,
+        findings_reopened: result.findingsReopened,
+        chunks_received: result.progress.chunksReceived,
+        files_scanned: result.progress.filesScanned,
+        bytes_scanned: result.progress.bytesScanned,
+        occurrences_total: result.progress.occurrencesTotal,
+      })
+      .eq("id", scanId)
+      .eq("user_id", userId)
+      .in("status", ["queued", "running"])
+      .select("id");
+    if (error) fail("completeScan", error);
+    return (data ?? []).length > 0;
+  }
+
+  async listActiveScansCreatedBefore(userId: string, createdBefore: Date): Promise<ActiveScanActivity[]> {
+    const { data, error } = await this.db
+      .from("scans")
+      .select("id, created_at, started_at")
+      .eq("user_id", userId)
+      .in("status", ["queued", "running"])
+      .lt("created_at", createdBefore.toISOString());
+    if (error) fail("listActiveScansCreatedBefore", error);
+
+    const result: ActiveScanActivity[] = [];
+    for (const scan of data ?? []) {
+      const last = await this.db
+        .from("scan_logs")
+        .select("created_at")
+        .eq("user_id", userId)
+        .eq("scan_id", scan.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (last.error) fail("listActiveScansCreatedBefore", last.error);
+      const times = [scan.created_at, scan.started_at, last.data?.created_at]
+        .filter((t): t is string => typeof t === "string")
+        .map((t) => new Date(t).getTime());
+      result.push({ id: scan.id, lastActivityAt: new Date(Math.max(...times)) });
+    }
+    return result;
+  }
+
+  async failScan(userId: string, scanId: string, message: string, at: Date): Promise<boolean> {
+    const { data, error } = await this.db
+      .from("scans")
+      .update({ status: "failed", error_message: message, finished_at: at.toISOString() })
+      .eq("id", scanId)
+      .eq("user_id", userId)
+      .in("status", ["queued", "running"])
+      .select("id");
+    if (error) fail("failScan", error);
+    return (data ?? []).length > 0;
   }
 }

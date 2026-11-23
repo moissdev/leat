@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type {
+  ActiveScanActivity,
   ChunkSummary,
+  CompletedScan,
   FindingRecord,
   FindingStatus,
   FindingTouch,
@@ -27,8 +29,15 @@ export interface MemoryScan extends ScanRecord {
   sourceRef: string | null;
   createdAt: Date;
   startedAt: Date | null;
+  finishedAt: Date | null;
+  filesTotal: number;
+  filesSkipped: number;
   filesTruncated: number;
   occurrencesTotal: number;
+  findingsNew: number;
+  findingsReopened: number;
+  isFullScan: boolean;
+  errorMessage: string | null;
 }
 
 /**
@@ -40,7 +49,15 @@ export class MemoryScanStore implements ScanStore {
   scans: MemoryScan[] = [];
   findings: MemoryFinding[] = [];
   occurrences: (NewOccurrence & { id: string })[] = [];
-  logs: { userId: string; scanId: string; level: string; event: string; message: string | null; metadata: unknown }[] = [];
+  logs: {
+    userId: string;
+    scanId: string;
+    level: string;
+    event: string;
+    message: string | null;
+    metadata: unknown;
+    createdAt: Date;
+  }[] = [];
   /** Transiciones de estado, como las escribiría el trigger. */
   transitions: { findingId: string; from: FindingStatus | null; to: FindingStatus; reason: string | null }[] = [];
   /** Reloj de creación de escaneos (para el rate limit). */
@@ -77,8 +94,15 @@ export class MemoryScanStore implements ScanStore {
       sourceRef: scan.sourceRef,
       createdAt: new Date(this.clock),
       startedAt: null,
+      finishedAt: null,
+      filesTotal: 0,
+      filesSkipped: 0,
       filesTruncated: 0,
       occurrencesTotal: 0,
+      findingsNew: 0,
+      findingsReopened: 0,
+      isFullScan: false,
+      errorMessage: null,
     };
     this.scans.push(record);
     return { ...record };
@@ -162,7 +186,15 @@ export class MemoryScanStore implements ScanStore {
 
   async recordChunk(userId: string, scanId: string, summary: ChunkSummary): Promise<"recorded" | "duplicate"> {
     if (await this.hasChunk(userId, scanId, summary.chunk_index)) return "duplicate";
-    this.logs.push({ userId, scanId, level: "info", event: "chunk_processed", message: null, metadata: summary });
+    this.logs.push({
+      userId,
+      scanId,
+      level: "info",
+      event: "chunk_processed",
+      message: null,
+      metadata: summary,
+      createdAt: new Date(this.clock),
+    });
     return "recorded";
   }
 
@@ -183,7 +215,71 @@ export class MemoryScanStore implements ScanStore {
       event: entry.event,
       message: entry.message ?? null,
       metadata: entry.metadata ?? {},
+      createdAt: new Date(this.clock),
     });
+  }
+
+  async listActiveFindingIds(userId: string, projectId: string): Promise<string[]> {
+    return this.findings
+      .filter((f) => f.userId === userId && f.projectId === projectId && f.status === "active")
+      .map((f) => f.id);
+  }
+
+  async listFindingIdsSeenInScan(userId: string, scanId: string): Promise<string[]> {
+    return [...new Set(this.occurrences.filter((o) => o.userId === userId && o.scanId === scanId).map((o) => o.findingId))];
+  }
+
+  async resolveFindings(userId: string, findingIds: readonly string[], reason: string): Promise<number> {
+    let resolved = 0;
+    for (const f of this.findings) {
+      if (f.userId === userId && f.status === "active" && findingIds.includes(f.id)) {
+        this.setStatus(f, "resolved", reason);
+        resolved += 1;
+      }
+    }
+    return resolved;
+  }
+
+  async completeScan(userId: string, scanId: string, result: CompletedScan): Promise<boolean> {
+    const scan = this.openScan(userId, scanId);
+    if (!scan) return false;
+    Object.assign(scan, result.progress, {
+      status: "completed",
+      finishedAt: result.finishedAt,
+      isFullScan: result.isFullScan,
+      filesTotal: result.filesTotal,
+      filesSkipped: result.filesSkipped,
+      filesTruncated: result.filesTruncated,
+      findingsNew: result.findingsNew,
+      findingsReopened: result.findingsReopened,
+    });
+    return true;
+  }
+
+  async listActiveScansCreatedBefore(userId: string, createdBefore: Date): Promise<ActiveScanActivity[]> {
+    return this.scans
+      .filter((s) => s.userId === userId && (s.status === "queued" || s.status === "running") && s.createdAt < createdBefore)
+      .map((s) => {
+        const times = [s.createdAt, s.startedAt, ...this.logs.filter((l) => l.scanId === s.id).map((l) => l.createdAt)]
+          .filter((t): t is Date => t instanceof Date)
+          .map((t) => t.getTime());
+        return { id: s.id, lastActivityAt: new Date(Math.max(...times)) };
+      });
+  }
+
+  async failScan(userId: string, scanId: string, message: string, at: Date): Promise<boolean> {
+    const scan = this.openScan(userId, scanId);
+    if (!scan) return false;
+    scan.status = "failed";
+    scan.errorMessage = message;
+    scan.finishedAt = at;
+    return true;
+  }
+
+  private openScan(userId: string, scanId: string): MemoryScan | undefined {
+    return this.scans.find(
+      (s) => s.id === scanId && s.userId === userId && (s.status === "queued" || s.status === "running"),
+    );
   }
 
   /** Cambio de estado como lo haría el usuario o el sistema (registra la transición). */

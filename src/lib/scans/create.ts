@@ -1,3 +1,4 @@
+import { failOrphanScans } from "./cleanup";
 import type { ScanRecord, ScanStore } from "./persist";
 import { checkScanRateLimit } from "./rate-limit";
 import type { CreateScanInput } from "./schemas";
@@ -19,6 +20,9 @@ export async function createScan(
   if (!(await store.isProjectOwnedBy(userId, input.project_id))) {
     return { ok: false, error: "project_not_found" };
   }
+
+  // Los escaneos abandonados no deben seguir ocupando el cupo de "en curso".
+  await failOrphanScans(store, userId, now);
 
   const limit = await checkScanRateLimit(store, userId, now);
   if (!limit.ok) return { ok: false, error: limit.reason };

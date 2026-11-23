@@ -43,3 +43,13 @@ export const chunkSchema = z.object({
     .max(SCAN_LIMITS.maxFilesPerScan),
 });
 export type ChunkInput = z.infer<typeof chunkSchema>;
+
+/** Conteos de la ingesta del cliente (archivos que filtró o truncó antes de enviar). */
+const count = z.number().int().min(0).max(1_000_000);
+
+export const finalizeSchema = z.object({
+  files_total: count,
+  files_skipped: count,
+  files_truncated: count,
+});
+export type FinalizeInput = z.infer<typeof finalizeSchema>;
