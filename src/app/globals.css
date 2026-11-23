@@ -80,6 +80,13 @@ body {
   outline-offset: 2px;
 }
 
+/* Valor enmascarado resaltado dentro del visor Monaco. */
+.leat-masked-secret {
+  background: color-mix(in srgb, var(--color-sev-critical) 35%, transparent);
+  color: var(--color-sev-critical-fg) !important;
+  border-radius: 3px;
+}
+
 ::selection {
   background: var(--color-accent);
   color: var(--color-on-accent);

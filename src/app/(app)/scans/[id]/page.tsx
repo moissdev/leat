@@ -81,7 +81,9 @@ export default async function ScanPage({ params }: PageProps<"/scans/[id]">) {
                 <li key={`${o.finding.id}-${o.filePath}-${o.lineNumber}`} className="flex flex-col gap-2 py-3">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <SeverityBadge severity={o.finding.severity} />
-                    <span className="text-sm font-medium text-fg">{secretTypeLabel(o.finding.secret_type)}</span>
+                    <Link href={`/findings/${o.finding.id}`} className="text-sm font-medium text-fg hover:text-accent">
+                      {secretTypeLabel(o.finding.secret_type)}
+                    </Link>
                     <MaskedValue value={o.finding.masked_value} />
                     <StatusBadge status={o.finding.status} className="ml-auto" />
                   </div>
