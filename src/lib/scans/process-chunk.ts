@@ -5,6 +5,7 @@ import type {
   FindingRecord,
   NewOccurrence,
   ScanProgress,
+  ScanRecord,
   ScanStore,
 } from "./persist";
 import type { ChunkInput } from "./schemas";
@@ -95,7 +96,24 @@ export async function processChunk(
 ): Promise<ProcessChunkResult> {
   const scan = await store.getScan(userId, scanId);
   if (!scan) return { ok: false, error: "scan_not_found" };
-  if (scan.ingest === "github" || (scan.status !== "queued" && scan.status !== "running")) {
+  // GitHub lo orquesta el servidor: no acepta lotes desde la API.
+  if (scan.ingest === "github") return { ok: false, error: "scan_not_accepting_chunks" };
+  return processScanChunk(store, userId, scan, chunk, options);
+}
+
+/**
+ * Núcleo del procesamiento de un lote para un escaneo ya cargado y del
+ * usuario. Lo usan la API de lotes y el escaneo de GitHub (servidor).
+ */
+export async function processScanChunk(
+  store: ScanStore,
+  userId: string,
+  scan: ScanRecord,
+  chunk: ChunkInput,
+  options: ProcessChunkOptions,
+): Promise<ProcessChunkResult> {
+  const scanId = scan.id;
+  if (scan.status !== "queued" && scan.status !== "running") {
     return { ok: false, error: "scan_not_accepting_chunks" };
   }
   if (await store.hasChunk(userId, scanId, chunk.chunk_index)) {

@@ -13,6 +13,7 @@
     "test:db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run --mode db"
   },
   "dependencies": {
+    "@octokit/rest": "22.0.1",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.119.0",
     "jszip": "3.10.1",
@@ -20,6 +21,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "0.0.1",
+    "tar-stream": "3.2.2",
     "zod": "4.6.7"
   },
   "devDependencies": {

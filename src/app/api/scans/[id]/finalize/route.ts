@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { z } from "zod";
+import { sendScanAlerts } from "@/lib/alerts/send";
 import { jsonError, jsonOk, logInternalError, readJsonBody } from "@/lib/api/http";
 import { finalizeScan } from "@/lib/scans/finalize";
 import { SupabaseScanStore } from "@/lib/scans/persist";
@@ -38,6 +40,21 @@ export async function POST(request: Request, context: RouteContext<"/api/scans/[
     if (outcome.alreadyCompleted) return jsonOk({ status: "completed", already_completed: true });
 
     const { result } = outcome;
+
+    // Alertas best-effort DESPUÉS de responder: no bloquean el cierre del escaneo.
+    const userId = user.id;
+    const scanUrl = `${new URL(request.url).origin}/scans/${scanId.data}`;
+    after(async () => {
+      await sendScanAlerts({
+        userId,
+        scanId: scanId.data,
+        projectId: result.projectId,
+        newFindingIds: result.newFindingIds,
+        reopenedFindingIds: result.reopenedFindingIds,
+        scanUrl,
+      });
+    });
+
     return jsonOk({
       status: "completed",
       already_completed: false,
