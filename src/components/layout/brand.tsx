@@ -5,7 +5,7 @@ export function Brand() {
   return (
     <Link href="/dashboard" className="block px-3">
       <span className="block text-2xl font-semibold tracking-wider text-accent">LEAT</span>
-      <span className="block text-xs text-fg-subtle">Leak &amp; Exposure Assessment</span>
+      <span className="block text-xs text-fg-subtle">Leak &amp; Exposure Assessment Tool</span>
     </Link>
   );
 }
