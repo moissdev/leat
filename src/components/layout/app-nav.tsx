@@ -5,13 +5,18 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { isActive, NAV_ITEMS } from "./nav-items";
 
-/** Navegación principal. El elemento activo: texto cian, fondo sólido y barra izquierda. */
-export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
-  const pathname = usePathname();
+interface NavLinksProps {
+  /** Ruta actual; null mientras no se conoce (fallback de Suspense). */
+  pathname: string | null;
+  onNavigate?: () => void;
+}
+
+/** Enlaces de navegación. El activo: texto cian, fondo sólido y barra izquierda. */
+export function NavLinks({ pathname, onNavigate }: NavLinksProps) {
   return (
     <nav aria-label="Principal" className="flex flex-col gap-0.5">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = isActive(pathname, href);
+        const active = pathname !== null && isActive(pathname, href);
         return (
           <Link
             key={href}
@@ -32,4 +37,9 @@ export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
       })}
     </nav>
   );
+}
+
+/** Navegación con la sección activa (lee la ruta: debe ir dentro de `<Suspense>`). */
+export function AppNav({ onNavigate }: { onNavigate?: () => void }) {
+  return <NavLinks pathname={usePathname()} onNavigate={onNavigate} />;
 }
