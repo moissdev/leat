@@ -204,3 +204,23 @@ describe("findEntropyMatches: falsos positivos de repos reales", () => {
     expect(findEntropyMatches(`fetch("https://api.example.com/v1/items?access_token=${token}")`)[0]?.secret).toBe(token);
   });
 });
+
+describe("findEntropyMatches: rutas de archivo", () => {
+  it.each([
+    "supabase/migrations/003_scan_chunk_idempotency.sql",
+    "ver src/lib/engine/scanner_v2_2026.ts",
+    "import x from './node_modules_cache/abc123def456/index'",
+  ])("no marca la ruta en minúsculas de %j", (text) => {
+    expect(findEntropyMatches(text)).toEqual([]);
+  });
+
+  it("un secreto base64 con / (mayúsculas mezcladas) se sigue detectando", () => {
+    const secret = ["wJalrXUtnFEMI", "K7MDENG", "bPxRfiCYEXAMPLEKEY"].join("/");
+    expect(findEntropyMatches(`value = "${secret}"`).map((m) => m.secret)).toEqual([secret]);
+  });
+
+  it("un token en minúsculas sin / sigue evaluándose por entropía", () => {
+    const token = alnum(40, 2).toLowerCase() + "9";
+    expect(findEntropyMatches(`token = "${token}"`)).toHaveLength(1);
+  });
+});
