@@ -17,6 +17,7 @@ export interface IngestCounts {
 }
 
 export interface FinalizedScan {
+  projectId: string;
   isFullScan: boolean;
   findingsNew: number;
   findingsReopened: number;
@@ -89,6 +90,7 @@ export async function completeScan(
     ok: true,
     alreadyCompleted: false,
     result: {
+      projectId: scan.projectId,
       isFullScan,
       findingsNew: newFindingIds.length,
       findingsReopened: reopenedFindingIds.length,
