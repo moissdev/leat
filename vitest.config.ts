@@ -22,5 +22,7 @@ export default defineConfig(({ mode }) => ({
     environment: "node",
     include: mode === "db" ? ["tests/db/**/*.test.ts"] : ["tests/**/*.test.ts"],
     exclude: mode === "db" ? [] : ["tests/db/**"],
+    // Las pruebas de integración hacen varias peticiones de red por caso.
+    testTimeout: mode === "db" ? 30_000 : 5_000,
   },
 }));
