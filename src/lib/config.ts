@@ -31,6 +31,10 @@ export const ZIP_LIMITS = {
   maxCompressionRatio: 100,
   /** Tamaño máximo de cada lote enviado a /api/scans/[id]/chunks (body de Vercel: 4.5 MB). */
   maxChunkBytes: 3 * MB,
+  /** Entradas máximas en el directorio del ZIP (protege la memoria al leer el índice). */
+  maxEntries: 20_000,
+  /** Longitud máxima de la ruta de una entrada. */
+  maxPathLength: 1_024,
 } as const;
 
 /** Límites del escaneo de repositorios públicos de GitHub. */
