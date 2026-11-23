@@ -51,8 +51,8 @@ const HEX_REGEX = /^[0-9a-f]+$/i;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Integridad de lockfiles / SRI: `sha512-<base64>`. */
 const INTEGRITY_REGEX = /^sha(?:1|256|384|512)-/i;
-/** Datos incrustados: `data:image/png;base64,<datos>`. */
-const DATA_URI_PREFIX_REGEX = /;base64,$/i;
+/** Datos incrustados: `data:image/png;base64,<datos>` (el tramo completo de datos). */
+const DATA_URI_REGEX = /;base64,[A-Za-z0-9+/=_-]{0,2000}/gi;
 
 /**
  * Nombre de variable inmediatamente antes de la asignación del candidato:
@@ -149,13 +149,17 @@ export function isHighEntropy(value: string): boolean {
  */
 export function findEntropyMatches(text: string): EntropyMatch[] {
   const matches: EntropyMatch[] = [];
+  const dataUris = Array.from(text.matchAll(DATA_URI_REGEX), (m) => ({
+    start: m.index,
+    end: m.index + m[0].length,
+  }));
 
   for (const match of text.matchAll(TOKEN_REGEX)) {
     const secret = match[0];
     const start = match.index;
     const before = text.slice(0, start);
 
-    if (DATA_URI_PREFIX_REGEX.test(before)) continue;
+    if (dataUris.some((uri) => start >= uri.start && start < uri.end)) continue;
     if (isExcludedShape(secret) || !isHighEntropy(secret)) continue;
 
     const name = assignedName(before);
