@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useActionState } from "react";
 import { login, type AuthFormState } from "@/lib/auth/actions";
+import { buttonClasses } from "@/components/ui/button";
 import { AuthField, FormAlert } from "./auth-form-fields";
 
 const QUERY_ERRORS: Record<string, string> = {
@@ -41,13 +42,13 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-foreground px-4 py-2 font-medium text-background disabled:opacity-60"
+        className={buttonClasses("primary", "md", "w-full")}
       >
         {pending ? "Entrando…" : "Iniciar sesión"}
       </button>
-      <p className="text-sm">
+      <p className="text-center text-sm text-fg-muted">
         ¿No tienes cuenta?{" "}
-        <Link href="/signup" className="underline">
+        <Link href="/signup" className="text-accent hover:underline">
           Regístrate
         </Link>
       </p>

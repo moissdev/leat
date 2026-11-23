@@ -1,4 +1,4 @@
-// Campos de formulario provisionales (sin diseño final; se rediseñan en el checkpoint 14).
+import { cn } from "@/lib/cn";
 
 interface FieldProps {
   name: string;
@@ -12,8 +12,8 @@ interface FieldProps {
 export function AuthField({ name, label, type, autoComplete, defaultValue, error }: FieldProps) {
   const errorId = `${name}-error`;
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={name} className="text-sm font-medium">
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={name} className="text-sm font-medium text-fg">
         {label}
       </label>
       <input
@@ -25,10 +25,14 @@ export function AuthField({ name, label, type, autoComplete, defaultValue, error
         required
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
-        className="rounded border border-current/20 bg-transparent px-3 py-2"
+        className={cn(
+          "h-10 rounded-lg border bg-raised px-3 text-sm text-fg placeholder:text-fg-subtle",
+          "focus:border-accent focus:outline-none",
+          error ? "border-threat" : "border-line",
+        )}
       />
       {error ? (
-        <p id={errorId} className="text-sm text-red-500">
+        <p id={errorId} className="text-xs text-threat-fg">
           {error}
         </p>
       ) : null}
@@ -40,9 +44,10 @@ export function FormAlert({ kind, children }: { kind: "error" | "info"; children
   return (
     <p
       role={kind === "error" ? "alert" : "status"}
-      className={`rounded border px-3 py-2 text-sm ${
-        kind === "error" ? "border-red-500/40 text-red-500" : "border-current/20"
-      }`}
+      className={cn(
+        "rounded-lg border px-3 py-2 text-sm",
+        kind === "error" ? "border-threat/60 bg-threat/15 text-threat-fg" : "border-accent/50 bg-accent/10 text-fg",
+      )}
     >
       {children}
     </p>

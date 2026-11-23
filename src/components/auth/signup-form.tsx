@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { signup, type AuthFormState } from "@/lib/auth/actions";
 import { PASSWORD_MIN } from "@/lib/auth/schemas";
+import { buttonClasses } from "@/components/ui/button";
 import { AuthField, FormAlert } from "./auth-form-fields";
 
 export function SignupForm() {
@@ -13,7 +14,7 @@ export function SignupForm() {
     return (
       <div className="flex flex-col gap-4">
         <FormAlert kind="info">{state.message}</FormAlert>
-        <Link href="/login" className="text-sm underline">
+        <Link href="/login" className="text-sm text-accent hover:underline">
           Volver a iniciar sesión
         </Link>
       </div>
@@ -50,13 +51,13 @@ export function SignupForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-foreground px-4 py-2 font-medium text-background disabled:opacity-60"
+        className={buttonClasses("primary", "md", "w-full")}
       >
         {pending ? "Creando cuenta…" : "Crear cuenta"}
       </button>
-      <p className="text-sm">
+      <p className="text-center text-sm text-fg-muted">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/login" className="underline">
+        <Link href="/login" className="text-accent hover:underline">
           Inicia sesión
         </Link>
       </p>
