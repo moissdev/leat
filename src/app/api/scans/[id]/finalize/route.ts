@@ -1,12 +1,10 @@
 import { after } from "next/server";
 import { z } from "zod";
-import { dispatchScanAlerts } from "@/lib/alerts/dispatch";
-import { SupabaseAlertStore } from "@/lib/alerts/store";
+import { sendScanAlerts } from "@/lib/alerts/send";
 import { jsonError, jsonOk, logInternalError, readJsonBody } from "@/lib/api/http";
 import { finalizeScan } from "@/lib/scans/finalize";
 import { SupabaseScanStore } from "@/lib/scans/persist";
 import { finalizeSchema } from "@/lib/scans/schemas";
-import { getWebhookEncryptionKey } from "@/lib/server-env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/supabase/session";
 
@@ -47,22 +45,14 @@ export async function POST(request: Request, context: RouteContext<"/api/scans/[
     const userId = user.id;
     const scanUrl = `${new URL(request.url).origin}/scans/${scanId.data}`;
     after(async () => {
-      await dispatchScanAlerts(
-        {
-          store: new SupabaseAlertStore(createSupabaseAdminClient(), getWebhookEncryptionKey),
-          fetch,
-          sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-          now: () => new Date(),
-        },
-        {
-          userId,
-          scanId: scanId.data,
-          projectId: result.projectId,
-          newFindingIds: result.newFindingIds,
-          reopenedFindingIds: result.reopenedFindingIds,
-          scanUrl,
-        },
-      );
+      await sendScanAlerts({
+        userId,
+        scanId: scanId.data,
+        projectId: result.projectId,
+        newFindingIds: result.newFindingIds,
+        reopenedFindingIds: result.reopenedFindingIds,
+        scanUrl,
+      });
     });
 
     return jsonOk({

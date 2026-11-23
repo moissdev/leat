@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { SCAN_LIMITS, ZIP_LIMITS } from "../config";
+import { normalizeEntryPath } from "./paths";
 import { getSkipReason, hasBinaryExtension, hasNullByte, isIgnoredPath, utf8ByteLength } from "../engine/filters";
 
 /**
@@ -16,6 +17,8 @@ import { getSkipReason, hasBinaryExtension, hasNullByte, isIgnoredPath, utf8Byte
  * - Límites: al excederlos no se falla; lo sobrante se cuenta en
  *   `filesTruncated` e `isFullScan` queda en false.
  */
+
+export { normalizeEntryPath };
 
 export interface IngestFile {
   path: string;
@@ -85,20 +88,6 @@ const BATCH_OVERHEAD_BYTES = 64;
 /** Tipo de archivo "enlace simbólico" en los permisos Unix. */
 const UNIX_SYMLINK = 0o120000;
 const UNIX_FILE_TYPE_MASK = 0o170000;
-
-/**
- * Normaliza una ruta de entrada o devuelve null si es insegura:
- * absoluta (`/x`, `C:\x`, `\\servidor`), con `..`, byte nulo o demasiado larga.
- */
-export function normalizeEntryPath(raw: string): string | null {
-  if (raw.length === 0 || raw.length > ZIP_LIMITS.maxPathLength || raw.includes("\u0000")) return null;
-  const path = raw.replace(/\\/g, "/");
-  if (path.startsWith("/") || /^[A-Za-z]:/.test(path)) return null;
-
-  const segments = path.split("/").filter((s) => s.length > 0 && s !== ".");
-  if (segments.length === 0 || segments.some((s) => s === "..")) return null;
-  return segments.join("/");
-}
 
 /** Tamaño serializado de un archivo dentro del body JSON. */
 function serializedBytes(file: IngestFile): number {

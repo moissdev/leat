@@ -276,6 +276,11 @@ export class MemoryScanStore implements ScanStore {
     return true;
   }
 
+  async setScanSourceRef(userId: string, scanId: string, sourceRef: string): Promise<void> {
+    const scan = this.scans.find((s) => s.id === scanId && s.userId === userId);
+    if (scan) scan.sourceRef = sourceRef;
+  }
+
   private openScan(userId: string, scanId: string): MemoryScan | undefined {
     return this.scans.find(
       (s) => s.id === scanId && s.userId === userId && (s.status === "queued" || s.status === "running"),

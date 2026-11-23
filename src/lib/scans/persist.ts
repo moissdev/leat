@@ -170,6 +170,10 @@ export interface ScanStore {
   listActiveScansCreatedBefore(userId: string, createdBefore: Date): Promise<ActiveScanActivity[]>;
   /** `queued`/`running` → `failed`; devuelve false si ya no estaba abierto. */
   failScan(userId: string, scanId: string, message: string, at: Date): Promise<boolean>;
+
+  // ── GitHub (checkpoint 13)
+  /** Guarda el commit SHA analizado en `scans.source_ref`. */
+  setScanSourceRef(userId: string, scanId: string, sourceRef: string): Promise<void>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -601,5 +605,14 @@ export class SupabaseScanStore implements ScanStore {
       .select("id");
     if (error) fail("failScan", error);
     return (data ?? []).length > 0;
+  }
+
+  async setScanSourceRef(userId: string, scanId: string, sourceRef: string): Promise<void> {
+    const { error } = await this.db
+      .from("scans")
+      .update({ source_ref: sourceRef })
+      .eq("id", scanId)
+      .eq("user_id", userId);
+    if (error) fail("setScanSourceRef", error);
   }
 }
