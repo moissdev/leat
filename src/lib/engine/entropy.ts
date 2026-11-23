@@ -55,6 +55,20 @@ const INTEGRITY_REGEX = /^sha(?:1|256|384|512)-/i;
 const DATA_URI_REGEX = /;base64,[A-Za-z0-9+/=_-]{0,2000}/gi;
 /** ETag del paquete `etag` de Node (express, koa…): `<longitud hex>-<SHA-1 base64 de 27>`. */
 const ETAG_REGEX = /^[0-9a-f]{1,8}-[A-Za-z0-9+/]{27}$/;
+/** Segmento de una ruta de archivo en minúsculas (`003_scan_chunk`, `engine`). */
+const LOWERCASE_PATH_SEGMENT = /^[a-z0-9_.-]{1,64}$/;
+
+/**
+ * Ruta de archivo en minúsculas (`supabase/migrations/003_scan_chunk`): dos o
+ * más segmentos de identificadores. Un base64 aleatorio con `/` mezcla
+ * mayúsculas y no encaja. Sin regex anidadas: se valida segmento por segmento.
+ */
+function isLowercasePath(value: string): boolean {
+  // Sin barras al inicio (`./ruta` deja `/ruta`) ni al final.
+  const segments = value.replace(/^\/|\/$/g, "").split("/");
+  return segments.length >= 2 && segments.every((segment) => LOWERCASE_PATH_SEGMENT.test(segment));
+}
+
 /** Referencia de git fijada (`actions/checkout@<sha>`, `pkg@<sha>`). */
 const GIT_SHA_REGEX = /^[0-9a-f]{40}$/i;
 /** Tramo de una URL desde el host hasta antes de la query o el fragmento. */
@@ -125,11 +139,13 @@ export function classifyCharset(value: string): EntropyCharset {
 /**
  * Exclusiones por forma del candidato (sin mirar el contexto):
  * - UUIDs, integridad de lockfiles (`sha512-…`) y ETags (`8-O2uVAF…`).
+ * - Rutas de archivo en minúsculas (`src/lib/engine/scanner`).
  * - Solo dígitos (IDs, timestamps, teléfonos).
  * - Base64 sin dígitos o sin letras: suelen ser palabras, rutas o identificadores.
  */
 export function isExcludedShape(value: string): boolean {
   if (UUID_REGEX.test(value) || INTEGRITY_REGEX.test(value) || ETAG_REGEX.test(value)) return true;
+  if (isLowercasePath(value)) return true;
   if (/^[0-9]+$/.test(value)) return true;
   if (classifyCharset(value) === "base64") {
     return !/[0-9]/.test(value) || !/[A-Za-z]/.test(value);
