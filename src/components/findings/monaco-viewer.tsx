@@ -21,7 +21,7 @@ const defineTheme: BeforeMount = (monaco) => {
     colors: {
       "editor.background": "#0b0f14",
       "editor.foreground": "#e6edf3",
-      "editorLineNumber.foreground": "#6b7785",
+      "editorLineNumber.foreground": "#808c9b",
       "editorLineNumber.activeForeground": "#9aa7b4",
       "editor.lineHighlightBackground": "#0b0f14",
       "editorWidget.background": "#17202b",

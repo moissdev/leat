@@ -16,7 +16,7 @@ const SERIES = [
   { key: "resolved", label: "Resueltos", color: "#9d4edd" },
 ] as const;
 
-const AXIS = { fill: "#6b7785", fontSize: 11 };
+const AXIS = { fill: "#808c9b", fontSize: 11 };
 const shortDate = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short", timeZone: "UTC" });
 
 function formatDay(day: string): string {
