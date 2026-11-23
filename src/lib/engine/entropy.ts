@@ -53,6 +53,16 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const INTEGRITY_REGEX = /^sha(?:1|256|384|512)-/i;
 /** Datos incrustados: `data:image/png;base64,<datos>` (el tramo completo de datos). */
 const DATA_URI_REGEX = /;base64,[A-Za-z0-9+/=_-]{0,2000}/gi;
+/** ETag del paquete `etag` de Node (express, koa…): `<longitud hex>-<SHA-1 base64 de 27>`. */
+const ETAG_REGEX = /^[0-9a-f]{1,8}-[A-Za-z0-9+/]{27}$/;
+/** Referencia de git fijada (`actions/checkout@<sha>`, `pkg@<sha>`). */
+const GIT_SHA_REGEX = /^[0-9a-f]{40}$/i;
+/** Tramo de una URL desde el host hasta antes de la query o el fragmento. */
+const URL_PATH_REGEX = /[A-Za-z][A-Za-z0-9+.-]{0,20}:\/\/([^\s"'`<>()[\]{}?#]{1,2000})/g;
+/** Cabeceras de datos comprimidos codificados en hex: gzip (`1f8b08`) y zlib (`78 01/5e/9c/da`). */
+const COMPRESSED_HEX_REGEX = /^(?:1f8b08|78(?:01|5e|9c|da))/i;
+/** Proporción de bytes ASCII imprimibles a partir de la cual un hex es texto codificado. */
+const PRINTABLE_HEX_RATIO = 0.7;
 
 /**
  * Nombre de variable inmediatamente antes de la asignación del candidato:
@@ -114,17 +124,41 @@ export function classifyCharset(value: string): EntropyCharset {
 
 /**
  * Exclusiones por forma del candidato (sin mirar el contexto):
- * - UUIDs e integridad de lockfiles (`sha512-…`).
+ * - UUIDs, integridad de lockfiles (`sha512-…`) y ETags (`8-O2uVAF…`).
  * - Solo dígitos (IDs, timestamps, teléfonos).
  * - Base64 sin dígitos o sin letras: suelen ser palabras, rutas o identificadores.
  */
 export function isExcludedShape(value: string): boolean {
-  if (UUID_REGEX.test(value) || INTEGRITY_REGEX.test(value)) return true;
+  if (UUID_REGEX.test(value) || INTEGRITY_REGEX.test(value) || ETAG_REGEX.test(value)) return true;
   if (/^[0-9]+$/.test(value)) return true;
   if (classifyCharset(value) === "base64") {
     return !/[0-9]/.test(value) || !/[A-Za-z]/.test(value);
   }
   return false;
+}
+
+/**
+ * ¿Un hex representa datos y no una clave? Texto codificado (la mayoría de
+ * sus bytes son ASCII imprimible, improbable en una clave aleatoria, donde
+ * ronda el 37 %) o datos comprimidos con cabecera conocida (gzip, zlib).
+ */
+export function isHexEncodedData(value: string): boolean {
+  if (!HEX_REGEX.test(value) || value.length % 2 !== 0) return false;
+  if (COMPRESSED_HEX_REGEX.test(value)) return true;
+  let printable = 0;
+  for (let i = 0; i < value.length; i += 2) {
+    const byte = Number.parseInt(value.slice(i, i + 2), 16);
+    if (byte >= 0x20 && byte <= 0x7e) printable += 1;
+  }
+  return printable / (value.length / 2) >= PRINTABLE_HEX_RATIO;
+}
+
+/** Tramos [inicio, fin) de host + ruta de las URLs de la línea (sin query ni fragmento). */
+function urlPathSpans(text: string): { start: number; end: number }[] {
+  return Array.from(text.matchAll(URL_PATH_REGEX), (m) => {
+    const start = m.index + m[0].length - (m[1] ?? "").length;
+    return { start, end: start + (m[1] ?? "").length };
+  });
 }
 
 /** Nombre de la variable a la que se asigna el candidato, si lo hay. */
@@ -153,19 +187,24 @@ export function findEntropyMatches(text: string): EntropyMatch[] {
     start: m.index,
     end: m.index + m[0].length,
   }));
+  const urlPaths = urlPathSpans(text);
 
-  for (const match of text.matchAll(TOKEN_REGEX)) {
-    const secret = match[0];
-    const start = match.index;
+  const evaluate = (secret: string, start: number): void => {
+    if (secret.length < ENTROPY_SETTINGS.minLength) return;
     const before = text.slice(0, start);
 
-    if (dataUris.some((uri) => start >= uri.start && start < uri.end)) continue;
-    if (isExcludedShape(secret) || !isHighEntropy(secret)) continue;
+    if (dataUris.some((uri) => start >= uri.start && start < uri.end)) return;
+    if (isExcludedShape(secret) || !isHighEntropy(secret)) return;
+    // Referencias de git fijadas: `uses: actions/checkout@<sha>`.
+    if (before.endsWith("@") && GIT_SHA_REGEX.test(secret)) return;
 
     const name = assignedName(before);
-    if (name && isNonSecretName(name)) continue;
+    if (name && isNonSecretName(name)) return;
 
     const hasContext = name !== null && CONTEXT_REGEX.test(name);
+    // Sin contexto, un hex que es texto o datos comprimidos no es una clave.
+    if (!hasContext && isHexEncodedData(secret)) return;
+
     matches.push({
       secret,
       start,
@@ -175,6 +214,22 @@ export function findEntropyMatches(text: string): EntropyMatch[] {
       hasContext,
       severity: hasContext ? "medium" : "low",
     });
+  };
+
+  for (const match of text.matchAll(TOKEN_REGEX)) {
+    const token = match[0];
+    const start = match.index;
+    // En host y ruta de una URL, cada segmento se evalúa por separado:
+    // `…/advisories/GHSA-…` no se marca, un token largo en la ruta (webhook) sí.
+    if (urlPaths.some((span) => start >= span.start && start < span.end)) {
+      let offset = 0;
+      for (const segment of token.split("/")) {
+        evaluate(segment, start + offset);
+        offset += segment.length + 1;
+      }
+      continue;
+    }
+    evaluate(token, start);
   }
 
   return matches;

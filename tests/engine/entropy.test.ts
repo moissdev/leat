@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import {
   assignedName,
@@ -150,5 +151,56 @@ describe("tiempo acotado con entradas patológicas", () => {
     const startedAt = performance.now();
     findEntropyMatches(text);
     expect(performance.now() - startedAt).toBeLessThan(50);
+  });
+});
+
+describe("findEntropyMatches: falsos positivos de repos reales", () => {
+  const sha = createHash("sha1").update("pin").digest("hex");
+
+  it("excluye referencias de git fijadas con @ (GitHub Actions)", () => {
+    expect(findEntropyMatches(`      - uses: actions/checkout@${sha} # v4.2.0`)).toEqual([]);
+  });
+
+  it("un SHA suelto, sin @ ni nombre de hash, se sigue marcando como Baja", () => {
+    expect(findEntropyMatches(`value = "${sha}"`)).toHaveLength(1);
+  });
+
+  it("excluye hex que es texto codificado o datos comprimidos (sin contexto)", () => {
+    const text = Buffer.from('{"name":"tobi","ok":true}').toString("hex");
+    const gzip = gzipSync(Buffer.from("hola mundo")).toString("hex");
+    expect(findEntropyMatches(`test.write(Buffer.from('${text}', 'hex'))`)).toEqual([]);
+    expect(findEntropyMatches(`test.write(Buffer.from('${gzip}', 'hex'))`)).toEqual([]);
+  });
+
+  it("un hex aleatorio sigue marcándose, y con contexto incluso si es texto codificado", () => {
+    expect(findEntropyMatches(`x = "${randomBytes(16).toString("hex")}"`)).toHaveLength(1);
+    // Texto imprimible cuyo hex supera el umbral (3.36 bits): sin contexto se
+    // trata como datos; con un nombre de variable sensible se sigue reportando.
+    const encoded = Buffer.from(["Zx9!Qw7#", "Lp3$Vb5%Kd"].join("")).toString("hex");
+    expect(findEntropyMatches(`x = "${encoded}"`)).toEqual([]);
+    expect(findEntropyMatches(`password = "${encoded}"`)[0]?.severity).toBe("medium");
+  });
+
+  it("excluye ETags del paquete etag (express, koa)", () => {
+    const etag = createHash("sha1").update("express!").digest("base64").slice(0, 27);
+    expect(findEntropyMatches(`.expect('ETag', 'W/"3e7-${etag}"')`)).toEqual([]);
+    expect(findEntropyMatches(`'"8-${etag}"'`)).toEqual([]);
+  });
+
+  it("en la ruta de una URL evalúa cada segmento: los cortos no se marcan", () => {
+    expect(findEntropyMatches("[GHSA](https://github.com/ljharb/qs/security/advisories/GHSA-w7fw-mjwx-w883)")).toEqual([]);
+    expect(findEntropyMatches("see https://nvd.nist.gov/vuln/detail/CVE-2024-47764")).toEqual([]);
+  });
+
+  it("un token largo en la ruta de una URL (webhook) se sigue detectando, sin el resto de la ruta", () => {
+    const token = alnum(68, 3);
+    const text = `const hook = "https://discord.com/api/webhooks/123456789012345678/${token}";`;
+    const [match] = findEntropyMatches(text);
+    expect(match?.secret).toBe(token);
+  });
+
+  it("la query de una URL se sigue analizando completa", () => {
+    const token = alnum(40, 4);
+    expect(findEntropyMatches(`fetch("https://api.example.com/v1/items?access_token=${token}")`)[0]?.secret).toBe(token);
   });
 });
