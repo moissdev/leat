@@ -37,6 +37,12 @@
   --color-threat: #b20200;
   --color-threat-fg: #f2706b;
 
+  /* Series de gráficas (validadas contra la superficie oscura: banda de
+     luminosidad, croma, separación para daltonismo y contraste). El cian de
+     acento #22d3ee es demasiado claro como serie; aquí va un paso más oscuro. */
+  --color-chart-1: #0ea5c6;
+  --color-chart-2: #9d4edd;
+
   /* Severidades */
   --color-sev-critical: #b20200;
   --color-sev-critical-fg: #f2706b;
