@@ -11,19 +11,10 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { getDashboardData, TREND_DAYS } from "@/lib/dashboard/queries";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatDateTime, formatNumber, formatTtr } from "@/lib/format";
 import { INGEST_LABELS } from "@/lib/i18n/labels";
 
 export const metadata: Metadata = { title: "Dashboard · LEAT" };
-
-/** TTR legible en horas o días. */
-function formatTtr(seconds: number | null): string {
-  if (seconds === null) return "—";
-  const hours = seconds / 3600;
-  if (hours < 1) return `${Math.max(1, Math.round(seconds / 60))} min`;
-  if (hours < 48) return `${hours.toFixed(1)} h`;
-  return `${(hours / 24).toFixed(1)} d`;
-}
 
 export default async function DashboardPage() {
   await connection();

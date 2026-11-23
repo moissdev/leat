@@ -1,17 +1,14 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus } from "lucide-react";
+import { ScanTable } from "@/components/scans/scan-table";
 import { DeleteProjectButton } from "@/components/projects/delete-project-button";
 import { ProjectForm } from "@/components/projects/project-form";
 import { ScoreMeter } from "@/components/projects/score-meter";
-import { ScanStatusBadge } from "@/components/scans/scan-status-badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { SeverityBadge } from "@/components/ui/severity-badge";
-import { formatDateTime, formatDuration, formatNumber } from "@/lib/format";
-import { INGEST_LABELS } from "@/lib/i18n/labels";
 import { getProject, listProjectScans } from "@/lib/projects/queries";
 import { projectIdSchema } from "@/lib/projects/schemas";
 import { failOrphanScans } from "@/lib/scans/cleanup";
@@ -77,41 +74,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[id]"
         {scans.length === 0 ? (
           <p className="text-sm text-fg-muted">Aún no hay escaneos. Empieza con «Nuevo escaneo».</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="text-left text-xs text-fg-subtle">
-                  <th className="pb-2 font-normal">Fecha</th>
-                  <th className="pb-2 font-normal">Origen</th>
-                  <th className="pb-2 font-normal">Estado</th>
-                  <th className="pb-2 font-normal">Archivos</th>
-                  <th className="pb-2 font-normal">Nuevos</th>
-                  <th className="pb-2 font-normal">Duración</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scans.map((scan) => (
-                  <tr key={scan.id} className="border-t border-line">
-                    <td className="py-2.5">
-                      <Link href={`/scans/${scan.id}`} className="text-accent hover:underline">
-                        {formatDateTime(scan.created_at)}
-                      </Link>
-                    </td>
-                    <td className="py-2.5 text-fg-muted">{scan.ingest ? INGEST_LABELS[scan.ingest] : "—"}</td>
-                    <td className="py-2.5">{scan.status ? <ScanStatusBadge status={scan.status} /> : null}</td>
-                    <td className="py-2.5 text-fg-muted">
-                      {formatNumber(scan.files_scanned)}
-                      {scan.is_full_scan === false && scan.status === "completed" ? (
-                        <span className="ml-1 text-xs text-sev-medium-fg">(parcial)</span>
-                      ) : null}
-                    </td>
-                    <td className="py-2.5 text-fg">{formatNumber(scan.findings_new)}</td>
-                    <td className="py-2.5 text-fg-muted">{formatDuration(scan.duration_ms)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ScanTable scans={scans} />
         )}
       </Card>
 

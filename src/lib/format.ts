@@ -29,6 +29,15 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${minutes} min ${String(Math.round(seconds % 60)).padStart(2, "0")} s`;
 }
 
+/** Tiempo de remediación legible: minutos, horas o días. */
+export function formatTtr(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined) return "—";
+  const hours = seconds / 3600;
+  if (hours < 1) return `${Math.max(1, Math.round(seconds / 60))} min`;
+  if (hours < 48) return `${hours.toFixed(1)} h`;
+  return `${(hours / 24).toFixed(1)} d`;
+}
+
 /** Tamaño legible en KB o MB. */
 export function formatBytes(bytes: number | null | undefined): string {
   const value = bytes ?? 0;

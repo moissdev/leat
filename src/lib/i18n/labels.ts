@@ -82,3 +82,15 @@ export const SCAN_ERROR_LABELS: Record<string, string> = {
   tarball_error: "No se pudo descargar el repositorio",
   internal_error: "Error interno",
 };
+
+/** Motivos que el sistema escribe en el log de transiciones (`reason`). */
+export const LIFECYCLE_REASON_LABELS: Record<string, string> = {
+  first_detected: "Primera detección",
+  redetected: "Detectado de nuevo en un escaneo",
+  no_longer_detected: "Ya no apareció en un escaneo completo",
+};
+
+/** Motivo legible: los del sistema se traducen; las notas del usuario se muestran tal cual. */
+export function lifecycleReasonLabel(reason: string): string {
+  return LIFECYCLE_REASON_LABELS[reason] ?? reason;
+}

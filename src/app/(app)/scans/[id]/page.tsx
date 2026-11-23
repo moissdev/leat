@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
+import { AlertLogTable } from "@/components/reports/alert-log-table";
+import { ScanLogTimeline } from "@/components/reports/scan-log-timeline";
 import { LiveScanProgress } from "@/components/scans/live-scan-progress";
 import { Card, CardTitle } from "@/components/ui/card";
 import { MaskedValue } from "@/components/ui/masked-value";
@@ -12,6 +14,7 @@ import { formatDateTime, formatDuration } from "@/lib/format";
 import { INGEST_LABELS, SEVERITY_ORDER, secretTypeLabel } from "@/lib/i18n/labels";
 import { getScanReport, listScanOccurrences } from "@/lib/projects/queries";
 import { projectIdSchema } from "@/lib/projects/schemas";
+import { listAlertLogs, listScanLogs } from "@/lib/reports/queries";
 
 export const metadata: Metadata = { title: "Escaneo · LEAT" };
 
@@ -21,7 +24,11 @@ export default async function ScanPage({ params }: PageProps<"/scans/[id]">) {
 
   const scan = await getScanReport(id);
   if (!scan?.id || !scan.status || !scan.ingest) notFound();
-  const occurrences = scan.status === "completed" ? await listScanOccurrences(id) : [];
+  const [occurrences, logs, alerts] = await Promise.all([
+    scan.status === "completed" ? listScanOccurrences(id) : Promise.resolve([]),
+    listScanLogs(id),
+    listAlertLogs({ scanId: id, limit: 20 }),
+  ]);
   const sorted = [...occurrences].sort(
     (a, b) => SEVERITY_ORDER.indexOf(a.finding.severity) - SEVERITY_ORDER.indexOf(b.finding.severity),
   );
@@ -99,6 +106,17 @@ export default async function ScanPage({ params }: PageProps<"/scans/[id]">) {
           )}
         </Card>
       ) : null}
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardTitle>Bitácora del escaneo</CardTitle>
+          <ScanLogTimeline logs={logs} />
+        </Card>
+        <Card>
+          <CardTitle>Alertas enviadas</CardTitle>
+          <AlertLogTable logs={alerts} showScan={false} />
+        </Card>
+      </div>
     </>
   );
 }
